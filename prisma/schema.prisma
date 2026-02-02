@@ -1,0 +1,325 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum SchoolLevel {
+  PRIMARY
+  SECONDARY
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum ExamType {
+  QUIZ
+  MIDTERM
+  FINAL
+  PRACTICAL
+  OTHER
+}
+
+enum AttemptStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+model School {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  level     SchoolLevel
+  createdAt DateTime @default(now())
+
+  users     User[]
+  teachers  Teacher[]
+  students  Student[]
+  grades    Grade[]
+  classes   ClassRoom[]
+  subjects  Subject[]
+  years     AcademicYear[]
+  terms     Term[]
+  exams     Exam[]
+  results   ExamResult[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  username  String
+  email     String   @unique
+  phone     String?
+  role      UserRole
+  image     String?
+  createdAt DateTime @default(now())
+
+  failedAttempts Int      @default(0)
+  lockUntil      DateTime?
+
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherProfile Teacher?
+  studentProfile Student?
+
+  @@index([schoolId])
+}
+
+
+
+model Teacher {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  userId    Int      @unique
+  fullName  String
+  gender    Gender?
+  createdAt DateTime @default(now())
+
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+}
+
+
+
+model Student {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int
+  userId      Int      @unique
+  classId     Int
+  fullName    String
+  gender      Gender?
+  admissionNo String
+  createdAt   DateTime @default(now())
+
+  school     School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classRoom  ClassRoom @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  attempts   ExamAttempt[]
+  results    ExamResult[]
+  summaries  StudentExamSummary[]
+
+  @@index([schoolId])
+  @@index([classId])
+  @@unique([schoolId, admissionNo])
+}
+
+
+
+model Grade {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  name      String
+  sortOrder Int      @default(0)
+
+  school    School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classes   ClassRoom[]
+
+  @@index([schoolId])
+  @@unique([schoolId, name])
+}
+
+
+
+model ClassRoom {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  gradeId   Int
+  name      String
+  sortOrder Int      @default(0)
+  school    School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  grade     Grade      @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  students  Student[]
+  examItems ExamItem[]
+  summaries StudentExamSummary[]
+
+  @@index([schoolId])
+  @@index([gradeId])
+  @@unique([schoolId, gradeId, name])
+}
+
+
+
+model Subject {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  name      String
+  passMark  Decimal  @default(50.00)
+  fullMark  Decimal  @default(100.00)
+
+  school    School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  examItems ExamItem[]
+  results   ExamResult[]
+
+  @@index([schoolId])
+  @@unique([schoolId, name])
+}
+
+
+
+model AcademicYear {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  terms     Term[]
+  exams     Exam[]
+
+  @@index([schoolId])
+  @@unique([schoolId, name])
+}
+
+
+
+model Term {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  yearId    Int
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  sortOrder Int      @default(1)
+  isActive  Boolean  @default(false)
+
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  year      AcademicYear @relation(fields: [yearId], references: [id], onDelete: Cascade)
+  exams     Exam[]
+
+  @@index([schoolId])
+  @@index([yearId])
+  @@unique([schoolId, yearId, name])
+}
+
+
+
+model Exam {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  yearId    Int
+  termId    Int?
+  type      ExamType
+  name      String
+  examDate  DateTime?
+  createdAt DateTime @default(now())
+
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  year      AcademicYear @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  term      Term?        @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  items     ExamItem[]
+  attempts  ExamAttempt[]
+  results   ExamResult[]
+  summaries StudentExamSummary[]
+
+  @@index([schoolId])
+  @@index([yearId])
+  @@index([termId])
+}
+
+
+
+model ExamItem {
+  id        Int     @id @default(autoincrement())
+  examId    Int
+  classId   Int
+  subjectId Int
+  fullMark  Decimal @default(100.00)
+  passMark  Decimal @default(50.00)
+
+  exam      Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  classRoom ClassRoom @relation(fields: [classId], references: [id], onDelete: Restrict)
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  results   ExamResult[]
+
+  @@unique([examId, classId, subjectId])
+}
+
+
+
+
+model ExamAttempt {
+  id        Int           @id @default(autoincrement())
+  examId    Int
+  studentId Int
+  attemptNo Int           @default(1)
+  status    AttemptStatus @default(PRESENT)
+  takenAt   DateTime      @default(now())
+
+  exam      Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, studentId, attemptNo])
+}
+
+
+
+
+model ExamResult {
+  id         Int     @id @default(autoincrement())
+  schoolId   Int
+  examId     Int
+  examItemId Int
+  studentId  Int
+  subjectId  Int
+
+  score      Decimal
+  fullMark   Decimal
+  percentage Decimal
+
+  gradeLetter String?
+  isPass      Boolean
+  remark      String?
+
+  school   School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  exam     Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  examItem ExamItem @relation(fields: [examItemId], references: [id], onDelete: Cascade)
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([examItemId, studentId])
+}
+
+
+
+model StudentExamSummary {
+  id            Int     @id @default(autoincrement())
+  examId        Int
+  studentId     Int
+  classId       Int
+
+  totalScore    Decimal
+  totalFullMark Decimal
+  percentage    Decimal
+
+  overallGrade String?
+  overallPass  Boolean
+  rankInClass  Int?
+
+  exam      Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classRoom ClassRoom @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@unique([examId, studentId])
+}
