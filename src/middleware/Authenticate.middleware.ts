@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken"
 import { AuthRequest } from "../types/request";
 
 
+
 export const authenticate = async(req: AuthRequest, res: Response, next: NextFunction)=>{
     try {
         const AuthHeader = req?.headers.authorization
